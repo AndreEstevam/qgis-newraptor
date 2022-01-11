@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QDate
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QMessageBox
+from qgis.PyQt.QtWidgets import QAction, QMessageBox, QTableWidgetItem
 
 from qgis.core import QgsProject, QgsFeature, QgsGeometry, QgsPoint
 
@@ -208,6 +208,8 @@ class NewRaptor:
             missing_layers.append("Raptor Nests")
         elif "Raptor Buffer" not in map_layers:
             missing_layers.append("Raptor Buffer")
+        elif "Linear Buffer" not in map_layers:
+            missing_layers.append("Linear Buffer")
         if missing_layers:
             msg = "The following layers  are missing from the project:\n"
             for lyr in missing_layers:
@@ -224,6 +226,7 @@ class NewRaptor:
             # Instancing layers of interest
             lyrNests = QgsProject.instance().mapLayersByName("Raptor Nests")[0]
             lyrBuffer = QgsProject.instance().mapLayersByName("Raptor Buffer")[0]
+            lyrLinear = QgsProject.instance().mapLayersByName("Linear Buffer")[0]
             
             # Getting field values
             idxNestID = lyrNests.fields().indexOf("Nest_ID")
@@ -265,6 +268,25 @@ class NewRaptor:
             lyrBuffer.reload()
             
             dlgTable = DlgTable()
+            dlgTable.setWindowTitle("Impacts Table for Nest {}".format(valNestID))
+            # Findind linear projects that will be impacted
+            bb = geom_buff.boundingBox()            # every geometry has it
+            linears = lyrLinear.getFeatures(bb)     # looping through every feature is expensive, so...
+            for linear in linears:
+                valID = linear.attribute("Project")
+                valType = linear.attribute("type")
+                valDistance = linear.geometry().distance(geom)  # distance between linear buffer and nest
+                if valDistance < valBuffer:
+                    # Populate table
+                    row = dlgTable.tblImpacts.rowCount()
+                    dlgTable.tblImpacts.insertRow(row)  # insert row at end of table
+                    dlgTable.tblImpacts.setItem(row, 0, QTableWidgetItem(str(valID)))
+                    dlgTable.tblImpacts.setItem(row, 1, QTableWidgetItem(str(valType)))
+                    dlgTable.tblImpacts.setItem(row, 2, QTableWidgetItem("{:4.5f}".format(valDistance)))
+                    
+            dlgTable.tblImpacts.sortItems(2)
+            
+            
             dlgTable.show()
             dlgTable.exec_()
             
